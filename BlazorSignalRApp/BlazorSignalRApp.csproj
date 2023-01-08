@@ -6,4 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Connections.Client" Version="7.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="7.0.1" />
+    <PackageReference Include="Radzen.Blazor" Version="4.4.9" />
+  </ItemGroup>
+
 </Project>

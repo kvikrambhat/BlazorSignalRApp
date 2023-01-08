@@ -1,0 +1,99 @@
+﻿@page "/plot"
+
+@using BlazorSignalRApp.Data;
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Diagnostics;
+@inject NavigationManager NavManager
+@implements IAsyncDisposable
+
+<div>
+    @*Plot component*@
+    <RadzenChart>
+        <RadzenLineSeries Data="@Samples" CategoryProperty="Quarter" ValueProperty="Revenue" />
+    </RadzenChart>
+
+    <div class="form-group">
+        <label>
+            Samples Per Time Interval : <input @bind="SamplePerTI" />
+        </label>
+    </div>
+    <div class="form-group">
+        <label>
+            Time Interval in MS : <input @bind="TimeIntervalInMS" />
+        </label>
+    </div>
+    <button @onclick="Send" disabled="@(!IsConnected)">Send</button>
+    <button @onclick="ResetPlotStream" disabled="@(!IsConnected)">Reset</button>
+</div>
+
+@code {
+    private HubConnection? hubConnection;
+    private int SamplePerTI;
+    private int TimeIntervalInMS;
+    public int prevSampleCount = 0;
+    PlotDataItem[] Samples { get; set; }
+    List<PlotDataItem> SamplesList = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        //Create a signalR client for the required hub
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl(NavManager.ToAbsoluteUri("/plothub"))
+        .WithAutomaticReconnect()
+        .Build();
+
+        //Subscribe and register call back for the methods that you want to listen to
+        hubConnection.On<PlotDataItem[]>("ReceiveSamples", (samples) => InitializeDataReception(samples)
+
+       );
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task Send()
+    {
+        if (hubConnection is not null)
+        {//Invoke signalR hub method to configure plot sample rate
+            await hubConnection.SendAsync("SetSamplesRate", SamplePerTI, TimeIntervalInMS);
+        }
+    }
+
+    public bool IsConnected => hubConnection?.State == HubConnectionState.Connected;
+
+    public async Task ResetPlotStream()
+    {
+        if (hubConnection is not null)
+        {//Invoke signalR hub method to reset plot configuration
+            await hubConnection.SendAsync("ResetPlotDataSource");
+        }
+        Samples = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public async void InitializeDataReception(PlotDataItem[] samples)
+    {
+        //Call back method that gets triggered on samples being received over signalR client
+        var samplesDiff = samples.Length - prevSampleCount;
+        Debug.WriteLine($"CLI LOG {DateTime.Now} :{samples.Length}, Diff : {samplesDiff}");
+        if (samplesDiff != SamplePerTI)
+        {
+            Debug.WriteLine("!!! Samples dropped !!!");
+            //await ResetPlotStream();
+        }
+        prevSampleCount = 0;
+        SamplesList.AddRange(samples.ToList());
+        if (SamplesList.Count > 0)
+        {
+            Samples = SamplesList.ToArray();
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

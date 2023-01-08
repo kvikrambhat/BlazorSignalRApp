@@ -1,6 +1,6 @@
 using BlazorSignalRApp.Data;
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.ResponseCompression;
+using BlazorSignalRApp.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +8,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddSingleton<WeatherForecastService>();
+builder.Services.AddSingleton<IPlotData, PlotData>();//Add service to supply plot data
+builder.Services.AddResponseCompression(opts =>
+{
+    opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "application/octet-stream" });
+});//Configure server to send respones as octet stream over websockets
 
 var app = builder.Build();
 
@@ -26,6 +31,12 @@ app.UseStaticFiles();
 app.UseRouting();
 
 app.MapBlazorHub();
+//Add signalR hubs on the server
+app.MapHub<ChatHub>("/chathub");
+app.MapHub<PlotHub>("/plothub", (options) =>
+{
+    //options.TransportMaxBufferSize = 131072;
+});
 app.MapFallbackToPage("/_Host");
 
 app.Run();
